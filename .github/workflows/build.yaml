@@ -12,17 +12,17 @@ on:
       - "**"
 
 jobs:
-  list-dockerfiles:
+  dockerfile-matrix:
     name: List Dockerfiles
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.list.outputs.matrix }}
+      matrix: ${{ steps.dockerfile-matrix.outputs.matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
       - name: List Dockerfiles
-        id: list
+        id: dockerfile-matrix
         run: |
           echo "matrix=$(ls Dockerfile.* | sed 's/Dockerfile.//' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
 
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        dockerfiles: ${{fromJSON(needs.list-dockerfiles.outputs.matrix)}}
+        dockerfiles: ${{ fromJSON(needs.dockerfile-matrix.outputs.matrix) }}
 
     permissions:
       contents: read
