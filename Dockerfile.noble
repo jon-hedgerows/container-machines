@@ -1,0 +1,47 @@
+FROM ubuntu:noble
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies for Swift + OpenSSH + systemd + containerization
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  curl ca-certificates git sudo systemd systemd-sysv openssh-server \
+  binutils gpg vim \
+  unzip gnupg2 pkg-config tzdata \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*.
+
+# Add Docker's official GPG key, repo, and install docker
+ARG TARGETARCH
+
+RUN sudo install -m 0755 -d /etc/apt/keyrings \
+  && sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+  && sudo chmod a+r /etc/apt/keyrings/docker.asc \
+  && echo "Types: deb" | sudo tee /etc/apt/sources.list.d/docker.sources \
+  && echo "URIs: https://download.docker.com/linux/ubuntu" | sudo tee -a /etc/apt/sources.list.d/docker.sources \
+  && echo "Suites: noble"  | sudo tee -a /etc/apt/sources.list.d/docker.sources \
+  && echo "Components: stable" | sudo tee -a /etc/apt/sources.list.d/docker.sources \
+  && echo "Architectures: $TARGETARCH" | sudo tee -a /etc/apt/sources.list.d/docker.sources \
+  && echo "Signed-By: /etc/apt/keyrings/docker.asc" | sudo tee -a /etc/apt/sources.list.d/docker.sources \
+  && sudo apt-get update \
+  && sudo apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*.
+
+# Configure OpenSSH for local-only use:
+#   - Both password and public key auth enabled (no brute-force risk on loopback)
+#   - UseDNS no             — skip reverse DNS lookup, avoids multi-second connect delay
+#   - GSSAPIAuthentication no — skip GSSAPI negotiation, faster handshake
+RUN mkdir -p /var/run/sshd \
+  && ssh-keygen -A \
+  && sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/'                    /etc/ssh/sshd_config \
+  && sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/'     /etc/ssh/sshd_config \
+  && sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/'         /etc/ssh/sshd_config \
+  && echo 'UseDNS no'               >> /etc/ssh/sshd_config \
+  && echo 'GSSAPIAuthentication no' >> /etc/ssh/sshd_config \
+  && systemctl enable ssh
+
+RUN systemctl mask getty-static.service getty@.service systemd-logind.service \
+  apt-daily.timer apt-daily-upgrade.timer fstrim.timer || true
+
+EXPOSE 22
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
