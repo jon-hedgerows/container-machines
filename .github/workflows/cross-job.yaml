@@ -21,6 +21,7 @@ jobs:
           echo "somevar=yes" >> "$GITHUB_OUTPUT"
 
   build-and-push:
+    needs: job1
     name: Build Docker Images
     runs-on: ubuntu-latest
 
